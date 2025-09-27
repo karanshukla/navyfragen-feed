@@ -183,9 +183,13 @@ const fixBlobRefs = (obj: unknown): unknown => {
       const blob = obj as BlobRef
       return new BlobRef(blob.ref, blob.mimeType, blob.size, blob.original)
     }
-    return Object.entries(obj).reduce((acc, [key, val]) => {
-      return Object.assign(acc, { [key]: fixBlobRefs(val) })
-    }, {} as Record<string, unknown>)
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        ;(obj as Record<string, unknown>)[key] = fixBlobRefs(
+          (obj as Record<string, unknown>)[key],
+        )
+      }
+    }
   }
   return obj
 }

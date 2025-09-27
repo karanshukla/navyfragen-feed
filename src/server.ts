@@ -56,6 +56,7 @@ export class FeedGenerator {
       db,
       didResolver,
       cfg,
+      didCache,
     }
     feedGeneration(server, ctx)
     describeGenerator(server, ctx)
@@ -84,22 +85,35 @@ export class FeedGenerator {
       const twoWeeksAgo = new Date()
       twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
 
-      // 1. Search for text 'fragen.navy'
+      const uniqueUris = new Set<string>()
+      const postsToCreate: { uri: string; cid: string; indexedAt: string }[] =
+        []
+
       const textResults = await this.agent.api.app.bsky.feed.searchPosts({
         q: 'fragen.navy',
         limit: 100,
       })
-      const textPosts = textResults.data.posts.filter(
-        (p) => new Date(p.indexedAt) > twoWeeksAgo,
-      )
+      for (const post of textResults.data.posts) {
+        if (
+          new Date(post.indexedAt) > twoWeeksAgo &&
+          !uniqueUris.has(post.uri)
+        ) {
+          uniqueUris.add(post.uri)
+          postsToCreate.push({
+            uri: post.uri,
+            cid: post.cid,
+            indexedAt: new Date(post.indexedAt).toISOString(),
+          })
+        }
+      }
 
-      // 2. Search for 'navyfragen' and check alt text
       const altTextResults = await this.agent.api.app.bsky.feed.searchPosts({
         q: 'navyfragen',
         limit: 100,
       })
-      const altTextPosts = altTextResults.data.posts.filter((post) => {
-        if (new Date(post.indexedAt) < twoWeeksAgo) return false
+      for (const post of altTextResults.data.posts) {
+        if (new Date(post.indexedAt) < twoWeeksAgo || uniqueUris.has(post.uri))
+          continue
 
         let imageAltMatch = false
         if (
@@ -119,24 +133,16 @@ export class FeedGenerator {
             }
           }
         }
-        return imageAltMatch
-      })
 
-      const allPosts = [...textPosts, ...altTextPosts]
-      const uniqueUris = new Set<string>()
-      const uniquePosts = allPosts.filter((post) => {
-        if (uniqueUris.has(post.uri)) {
-          return false
+        if (imageAltMatch) {
+          uniqueUris.add(post.uri)
+          postsToCreate.push({
+            uri: post.uri,
+            cid: post.cid,
+            indexedAt: new Date(post.indexedAt).toISOString(),
+          })
         }
-        uniqueUris.add(post.uri)
-        return true
-      })
-
-      const postsToCreate = uniquePosts.map((post) => ({
-        uri: post.uri,
-        cid: post.cid,
-        indexedAt: new Date(post.indexedAt).toISOString(),
-      }))
+      }
 
       if (postsToCreate.length > 0) {
         console.log(`Backfilling ${postsToCreate.length} posts`)

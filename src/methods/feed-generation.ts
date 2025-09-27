@@ -17,6 +17,23 @@ const unauthenticatedRateLimiter = new Map<
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
 const MAX_REQUESTS_PER_WINDOW_AUTH = 10
 const MAX_REQUESTS_PER_WINDOW_UNAUTH = 5
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+const cleanupRateLimiters = () => {
+  const now = Date.now()
+  authenticatedRateLimiter.forEach((value, key) => {
+    if (now - value.lastReset > RATE_LIMIT_WINDOW_MS) {
+      authenticatedRateLimiter.delete(key)
+    }
+  })
+  unauthenticatedRateLimiter.forEach((value, key) => {
+    if (now - value.lastReset > RATE_LIMIT_WINDOW_MS) {
+      unauthenticatedRateLimiter.delete(key)
+    }
+  })
+}
+
+setInterval(cleanupRateLimiters, CLEANUP_INTERVAL_MS)
 
 export default function (server: Server, ctx: AppContext) {
   server.app.bsky.feed.getFeedSkeleton(async ({ params, req }) => {

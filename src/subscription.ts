@@ -13,13 +13,14 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri)
-    const postsToCreate = ops.posts.creates
-      .filter((create) => {
+    const twoWeeksAgo = new Date()
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+
+    const postsToCreate = ops.posts.creates.reduce(
+      (acc, create) => {
         const postDate = new Date(create.record.createdAt)
-        const twoWeeksAgo = new Date()
-        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
         if (postDate < twoWeeksAgo) {
-          return false
+          return acc
         }
 
         const textMatch = create.record.text
@@ -49,16 +50,16 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         const match = textMatch || imageAltMatch
         if (match) {
           console.log(`Found matching post: ${create.uri}`)
+          acc.push({
+            uri: create.uri,
+            cid: create.cid,
+            indexedAt: new Date().toISOString(),
+          })
         }
-        return match
-      })
-      .map((create) => {
-        return {
-          uri: create.uri,
-          cid: create.cid,
-          indexedAt: new Date().toISOString(),
-        }
-      })
+        return acc
+      },
+      [] as { uri: string; cid: string; indexedAt: string }[],
+    )
 
     if (postsToDelete.length > 0) {
       await this.db
