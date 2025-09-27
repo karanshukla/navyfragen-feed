@@ -4,11 +4,15 @@ import { DatabaseSchema } from './schema'
 import { migrationProvider } from './migrations'
 
 export const createDb = (location: string): Database => {
+  const db = new SqliteDb(location, {
+    verbose: console.log,
+  });
+  db.pragma('journal_mode = WAL');
   return new Kysely<DatabaseSchema>({
     dialect: new SqliteDialect({
-      database: new SqliteDb(location),
+      database: db,
     }),
-  })
+  });
 }
 
 export const migrateToLatest = async (db: Database) => {

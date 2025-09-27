@@ -15,6 +15,7 @@ import { Database } from '../db'
 
 export abstract class FirehoseSubscriptionBase {
   public sub: Subscription<RepoEvent>
+  private cursor: number | undefined
 
   constructor(public db: Database, public service: string) {
     this.sub = new Subscription({
@@ -38,13 +39,18 @@ export abstract class FirehoseSubscriptionBase {
 
   async run(subscriptionReconnectDelay: number) {
     try {
+      setInterval(() => {
+        if (this.cursor) {
+          this.updateCursor(this.cursor)
+        }
+      }, 5000) // Update every 5 seconds
+
       for await (const evt of this.sub) {
         this.handleEvent(evt).catch((err) => {
           console.error('repo subscription could not handle message', err)
         })
-        // update stored cursor every 20 events or so
-        if (isCommit(evt) && evt.seq % 20 === 0) {
-          await this.updateCursor(evt.seq)
+        if (isCommit(evt)) {
+          this.cursor = evt.seq
         }
       }
     } catch (err) {

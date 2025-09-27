@@ -107,6 +107,16 @@ export class FeedGenerator {
         }
       }
 
+      if (postsToCreate.length > 0) {
+        console.log(`Backfilling ${postsToCreate.length} posts`)
+        await this.db
+          .insertInto('post')
+          .values(postsToCreate)
+          .onConflict((oc) => oc.doNothing())
+          .execute()
+        postsToCreate.length = 0 // Clear the array
+      }
+
       const altTextResults = await this.agent.api.app.bsky.feed.searchPosts({
         q: 'navyfragen',
         limit: 100,
