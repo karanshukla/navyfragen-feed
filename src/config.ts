@@ -1,10 +1,11 @@
 import { Database } from './db'
-import { DidResolver } from '@atproto/identity'
+import { DidResolver, MemoryCache } from '@atproto/identity'
 
 export type AppContext = {
   db: Database
   didResolver: DidResolver
   cfg: Config
+  didCache: MemoryCache
 }
 
 export type Config = {
