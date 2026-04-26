@@ -4,31 +4,32 @@ import {
 } from './lexicon/types/com/atproto/sync/subscribeRepos'
 import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
 
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
+const FRAGEN_NAVY = 'fragen.navy'
+const NAVYFRAGEN = 'navyfragen'
+
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
     if (!isCommit(evt)) return
 
     const ops = await getOpsByType(evt)
-
-    
+    const now = Date.now()
+    const twoWeeksAgo = now - TWO_WEEKS_MS
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri)
-    const twoWeeksAgo = new Date()
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-
     const postsToCreate = ops.posts.creates.reduce(
       (acc, create) => {
-        const postDate = new Date(create.record.createdAt)
-        if (postDate < twoWeeksAgo) {
+        const createdAt = new Date(create.record.createdAt).getTime()
+        if (createdAt < twoWeeksAgo) {
           return acc
         }
 
-        const textMatch = create.record.text
-          .toLowerCase()
-          .includes('fragen.navy')
+        const text = create.record.text.toLowerCase()
+        const textMatch = text.includes(FRAGEN_NAVY)
 
         let imageAltMatch = false
         if (
+          !textMatch && // Skip if already matched
           create.record.embed &&
           (create.record.embed.$type === 'app.bsky.embed.images#main' ||
             create.record.embed.$type === 'app.bsky.embed.images') &&
@@ -39,7 +40,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
             if (
               image &&
               typeof image.alt === 'string' &&
-              image.alt.toLowerCase().includes('navyfragen')
+              image.alt.toLowerCase().includes(NAVYFRAGEN)
             ) {
               imageAltMatch = true
               break
@@ -47,13 +48,12 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
           }
         }
 
-        const match = textMatch || imageAltMatch
-        if (match) {
+        if (textMatch || imageAltMatch) {
           console.log(`Found matching post: ${create.uri}`)
           acc.push({
             uri: create.uri,
             cid: create.cid,
-            indexedAt: new Date().toISOString(),
+            indexedAt: new Date(now).toISOString(),
           })
         }
         return acc

@@ -1,6 +1,9 @@
 import http from 'http'
 import events from 'events'
 import express from 'express'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import slowDown from 'express-slow-down'
 import { DidResolver, MemoryCache } from '@atproto/identity'
 import { AtpAgent } from '@atproto/api'
 import { createServer } from './lexicon'
@@ -35,6 +38,44 @@ export class FeedGenerator {
 
   static create(cfg: Config) {
     const app = express()
+
+    // Security headers
+    app.use(helmet())
+
+    // Block common bogus requests (OWASP ZAP, scanners)
+    app.use((req, res, next) => {
+      const bogusPatterns = [
+        /\.php$/i,
+        /\.env$/i,
+        /\.git/i,
+        /wp-admin/i,
+        /xmlrpc/i,
+        /shell/i,
+        /exploit/i,
+      ]
+      if (bogusPatterns.some((pattern) => pattern.test(req.path))) {
+        return res.status(404).send()
+      }
+      next()
+    })
+
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // limit each IP to 100 requests per windowMs
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: 'Too many requests, please try again later.',
+    })
+    app.use(limiter)
+
+    // Speed limiting (slow down repetitive requests)
+    const speedLimiter = slowDown({
+      windowMs: 15 * 60 * 1000,
+      delayAfter: 50, // allow 50 requests per 15 minutes, then...
+      delayMs: (hits) => hits * 100, // begin adding 100ms of delay per request above 50
+    })
+    app.use(speedLimiter)
+
     const db = createDb(cfg.sqliteLocation)
     const firehose = new FirehoseSubscription(db, cfg.subscriptionEndpoint)
 
@@ -45,11 +86,11 @@ export class FeedGenerator {
     })
 
     const server = createServer({
-      validateResponse: true,
+      validateResponse: false, // Reduced CPU/Memory by disabling response validation
       payload: {
-        jsonLimit: 100 * 1024, // 100kb
-        textLimit: 100 * 1024, // 100kb
-        blobLimit: 5 * 1024 * 1024, // 5mb
+        jsonLimit: 50 * 1024, // Reduced to 50kb
+        textLimit: 50 * 1024, // Reduced to 50kb
+        blobLimit: 1 * 1024 * 1024, // Reduced to 1mb
       },
     })
     const ctx: AppContext = {
