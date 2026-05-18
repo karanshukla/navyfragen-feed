@@ -27,3 +27,17 @@ migrations['001'] = {
     await db.schema.dropTable('sub_state').execute()
   },
 }
+
+migrations['002'] = {
+  async up(db: Kysely<unknown>) {
+    await db.schema
+      .createIndex('post_indexed_at_idx')
+      .ifNotExists()
+      .on('post')
+      .column('indexedAt')
+      .execute()
+  },
+  async down(db: Kysely<unknown>) {
+    await db.schema.dropIndex('post_indexed_at_idx').execute()
+  },
+}

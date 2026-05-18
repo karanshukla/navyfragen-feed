@@ -4,7 +4,26 @@ import { AppContext } from '../config'
 // max 15 chars
 export const shortname = 'navyfragen'
 
+type FeedResult = { cursor: string | undefined; feed: { post: string }[] }
+type CacheEntry = { result: FeedResult; expires: number }
+
+const feedCache = new Map<string, CacheEntry>()
+const CACHE_TTL_MS = 30_000
+
+// Invalidate feed cache on new data (called by subscription)
+export const invalidateFeedCache = () => feedCache.clear()
+
+const getCacheKey = (params: QueryParams) =>
+  `${params.limit}:${params.cursor ?? ''}`
+
 export const handler = async (ctx: AppContext, params: QueryParams) => {
+  const cacheKey = getCacheKey(params)
+  const now = Date.now()
+  const cached = feedCache.get(cacheKey)
+  if (cached && cached.expires > now) {
+    return cached.result
+  }
+
   let builder = ctx.db
     .selectFrom('post')
     .selectAll()
@@ -28,8 +47,8 @@ export const handler = async (ctx: AppContext, params: QueryParams) => {
     cursor = new Date(last.indexedAt).getTime().toString(10)
   }
 
-  return {
-    cursor,
-    feed,
-  }
+  const result: FeedResult = { cursor, feed }
+  feedCache.set(cacheKey, { result, expires: now + CACHE_TTL_MS })
+
+  return result
 }
