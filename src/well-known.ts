@@ -5,6 +5,7 @@ const makeRouter = (ctx: AppContext) => {
   const router = express.Router()
 
   router.get('/.well-known/did.json', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
     res.json({
       '@context': ['https://www.w3.org/ns/did/v1'],
       id: ctx.cfg.serviceDid,

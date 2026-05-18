@@ -3,6 +3,7 @@ import {
   isCommit,
 } from './lexicon/types/com/atproto/sync/subscribeRepos'
 import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
+import { invalidateFeedCache } from './algos/navyfragen'
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
 const FRAGEN_NAVY = 'fragen.navy'
@@ -49,7 +50,6 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         }
 
         if (textMatch || imageAltMatch) {
-          console.log(`Found matching post: ${create.uri}`)
           acc.push({
             uri: create.uri,
             cid: create.cid,
@@ -73,6 +73,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         .values(postsToCreate)
         .onConflict((oc) => oc.doNothing())
         .execute()
+      invalidateFeedCache()
     }
   }
 }

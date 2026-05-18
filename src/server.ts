@@ -42,16 +42,33 @@ export class FeedGenerator {
     // Security headers
     app.use(helmet())
 
-    // Block common bogus requests (OWASP ZAP, scanners)
+    // Block scanner/exploit traffic before any rate-limit tracking
     app.use((req, res, next) => {
       const bogusPatterns = [
-        /\.php$/i,
-        /\.env$/i,
+        /\.php/i,
+        /\.asp/i,
+        /\.env/i,
         /\.git/i,
+        /\.xml/i,
         /wp-admin/i,
+        /wp-login/i,
+        /wp-content/i,
         /xmlrpc/i,
         /shell/i,
         /exploit/i,
+        /\/admin/i,
+        /\/actuator/i,
+        /\/config/i,
+        /\/backup/i,
+        /\/cgi-bin/i,
+        /phpmyadmin/i,
+        /\/setup/i,
+        /\/install/i,
+        /\/vendor/i,
+        /\/boaform/i,
+        /\/solr/i,
+        /\/telescope/i,
+        /\/debug/i,
       ]
       if (bogusPatterns.some((pattern) => pattern.test(req.path))) {
         return res.status(404).send()
@@ -60,8 +77,8 @@ export class FeedGenerator {
     })
 
     const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // limit each IP to 100 requests per windowMs
+      windowMs: 15 * 60 * 1000,
+      max: 50, // 50 requests per 15 minutes per IP
       standardHeaders: true,
       legacyHeaders: false,
       message: 'Too many requests, please try again later.',
@@ -71,10 +88,16 @@ export class FeedGenerator {
     // Speed limiting (slow down repetitive requests)
     const speedLimiter = slowDown({
       windowMs: 15 * 60 * 1000,
-      delayAfter: 50, // allow 50 requests per 15 minutes, then...
-      delayMs: (hits) => hits * 100, // begin adding 100ms of delay per request above 50
+      delayAfter: 20, // start adding delay after 20 requests
+      delayMs: (hits) => hits * 150,
     })
     app.use(speedLimiter)
+
+    // Cache-Control for feed skeleton: 30s public cache matches in-process feed cache TTL
+    app.use('/xrpc/app.bsky.feed.getFeedSkeleton', (_req, res, next) => {
+      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60')
+      next()
+    })
 
     const db = createDb(cfg.sqliteLocation)
     const firehose = new FirehoseSubscription(db, cfg.subscriptionEndpoint)
