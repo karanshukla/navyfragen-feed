@@ -78,7 +78,7 @@ export class FeedGenerator {
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 50, // 50 requests per 15 minutes per IP
+      max: 20, // 20 requests per 15 minutes per IP
       standardHeaders: true,
       legacyHeaders: false,
       message: 'Too many requests, please try again later.',
@@ -88,14 +88,14 @@ export class FeedGenerator {
     // Speed limiting (slow down repetitive requests)
     const speedLimiter = slowDown({
       windowMs: 15 * 60 * 1000,
-      delayAfter: 20, // start adding delay after 20 requests
-      delayMs: (hits) => hits * 150,
+      delayAfter: 5, // start adding delay after 5 requests
+      delayMs: (hits) => hits * 500,
     })
     app.use(speedLimiter)
 
-    // Cache-Control for feed skeleton: 30s public cache matches in-process feed cache TTL
+    // Cache-Control for feed skeleton: matches the 5-minute in-process feed cache TTL
     app.use('/xrpc/app.bsky.feed.getFeedSkeleton', (_req, res, next) => {
-      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60')
+      res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
       next()
     })
 

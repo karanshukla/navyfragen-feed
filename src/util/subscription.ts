@@ -1,7 +1,6 @@
 import { Subscription } from '@atproto/xrpc-server'
 import { cborToLexRecord, readCar } from '@atproto/repo'
-import { BlobRef } from '@atproto/lexicon'
-import { ids, lexicons } from '../lexicon/lexicons'
+import { ids } from '../lexicon/lexicons'
 import { Record as PostRecord } from '../lexicon/types/app/bsky/feed/post'
 import {
   Commit,
@@ -85,15 +84,20 @@ export abstract class FirehoseSubscriptionBase {
 }
 
 export const getOpsByType = async (evt: Commit): Promise<OperationsByType> => {
-  const car = await readCar(evt.blocks)
   const opsByType: OperationsByType = {
     posts: { creates: [], deletes: [] },
   }
 
-  for (const op of evt.ops) {
-    const [collection] = op.path.split('/')
-    if (collection !== ids.AppBskyFeedPost) continue
+  // Pre-filter to only feed-post ops before doing expensive CAR parsing.
+  // Most commits are likes, follows, reposts, etc. — skip them entirely.
+  const postOps = evt.ops.filter(
+    (op) => op.path.split('/')[0] === ids.AppBskyFeedPost,
+  )
+  if (postOps.length === 0) return opsByType
 
+  const car = await readCar(evt.blocks)
+
+  for (const op of postOps) {
     const uri = `at://${evt.repo}/${op.path}`
 
     if (op.action === 'create') {
@@ -137,35 +141,15 @@ type DeleteOp = {
   uri: string
 }
 
+// Fast duck-type check — avoids full schema validation + recursive fixBlobRefs
+// on every post in the firehose hot path.
 export const isPost = (obj: unknown): obj is PostRecord => {
-  return isType(obj, ids.AppBskyFeedPost)
-}
-
-const isType = (obj: unknown, nsid: string) => {
-  try {
-    lexicons.assertValidRecord(nsid, fixBlobRefs(obj))
-    return true
-  } catch (err) {
-    return false
-  }
-}
-
-const fixBlobRefs = (obj: unknown): unknown => {
-  if (Array.isArray(obj)) {
-    return obj.map(fixBlobRefs)
-  }
-  if (obj && typeof obj === 'object') {
-    if (obj.constructor.name === 'BlobRef') {
-      const blob = obj as BlobRef
-      return new BlobRef(blob.ref, blob.mimeType, blob.size, blob.original)
-    }
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        ;(obj as Record<string, unknown>)[key] = fixBlobRefs(
-          (obj as Record<string, unknown>)[key],
-        )
-      }
-    }
-  }
-  return obj
+  return (
+    obj !== null &&
+    typeof obj === 'object' &&
+    '$type' in obj &&
+    (obj as Record<string, unknown>)['$type'] === ids.AppBskyFeedPost &&
+    'text' in obj &&
+    typeof (obj as Record<string, unknown>)['text'] === 'string'
+  )
 }

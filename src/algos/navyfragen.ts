@@ -8,10 +8,20 @@ type FeedResult = { cursor: string | undefined; feed: { post: string }[] }
 type CacheEntry = { result: FeedResult; expires: number }
 
 const feedCache = new Map<string, CacheEntry>()
-const CACHE_TTL_MS = 30_000
+const CACHE_TTL_MS = 5 * 60_000 // 5 minutes; invalidated early when new posts arrive
 
-// Invalidate feed cache on new data (called by subscription)
-export const invalidateFeedCache = () => feedCache.clear()
+// Throttle invalidations to at most once per 60s so the cache stays warm
+// during rapid bursts of matching posts.
+let lastInvalidatedAt = 0
+const MIN_INVALIDATION_INTERVAL_MS = 60_000
+
+export const invalidateFeedCache = () => {
+  const now = Date.now()
+  if (now - lastInvalidatedAt >= MIN_INVALIDATION_INTERVAL_MS) {
+    feedCache.clear()
+    lastInvalidatedAt = now
+  }
+}
 
 const getCacheKey = (params: QueryParams) =>
   `${params.limit}:${params.cursor ?? ''}`
