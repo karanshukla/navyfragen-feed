@@ -1,6 +1,6 @@
 import { Subscription } from '@atproto/xrpc-server'
 import { cborToLexRecord, readCar } from '@atproto/repo'
-import { ids } from '../lexicon/lexicons'
+import { ids, lexicons } from '../lexicon/lexicons'
 import { Record as PostRecord } from '../lexicon/types/app/bsky/feed/post'
 import {
   Commit,
