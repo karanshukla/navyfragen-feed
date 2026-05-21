@@ -9,7 +9,7 @@ export const createDb = (location: string): Database => {
   db.pragma('synchronous = NORMAL')
   db.pragma('foreign_keys = ON')
   db.pragma('temp_store = MEMORY')
-  db.pragma('mmap_size = 30000000000') // 30GB
+  db.pragma('mmap_size = 134217728') // 128MB
   db.pragma('cache_size = -2000') // 2MB
   return new Kysely<DatabaseSchema>({
     dialect: new SqliteDialect({
