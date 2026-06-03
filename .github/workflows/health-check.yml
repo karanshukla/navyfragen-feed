@@ -1,0 +1,54 @@
+name: Feed health check
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'   # every 6 hours
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Describe feed generator
+        id: describe
+        run: |
+          response=$(curl -sf --max-time 15 \
+            https://feed.navyfragen.app/xrpc/app.bsky.feed.describeFeedGenerator)
+          echo "$response" | jq .
+          # Fail if no feeds are registered
+          echo "$response" | jq -e '.feeds | length > 0' > /dev/null
+          # Export the first feed URI for subsequent steps
+          feed_uri=$(echo "$response" | jq -r '.feeds[0].uri')
+          echo "feed_uri=$feed_uri" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch feed skeleton
+        id: skeleton
+        run: |
+          feed_uri="${{ steps.describe.outputs.feed_uri }}"
+          response=$(curl -sf --max-time 15 --compressed \
+            "https://feed.navyfragen.app/xrpc/app.bsky.feed.getFeedSkeleton?feed=${feed_uri}&limit=30")
+          echo "$response" | jq .
+          # Fail if response doesn't have a feed key
+          echo "$response" | jq -e 'has("feed")' > /dev/null
+          # Warn (but don't fail) if feed is empty
+          count=$(echo "$response" | jq '.feed | length')
+          echo "Post count: $count"
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::Feed returned 0 posts — firehose may not be indexing or database is empty"
+          fi
+
+      - name: Check gzip compression is active
+        run: |
+          feed_uri="${{ steps.describe.outputs.feed_uri }}"
+          headers=$(curl -sI --max-time 15 \
+            -H "Accept-Encoding: gzip, deflate, br" \
+            "https://feed.navyfragen.app/xrpc/app.bsky.feed.getFeedSkeleton?feed=${feed_uri}&limit=1")
+          echo "$headers"
+          echo "$headers" | grep -i "content-encoding: gzip" > /dev/null || \
+            echo "::warning::Response is not gzip-encoded — check compression middleware"
+
+      - name: Check well-known DID document
+        run: |
+          curl -sf --max-time 15 https://feed.navyfragen.app/.well-known/did.json | jq .
