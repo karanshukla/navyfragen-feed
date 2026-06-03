@@ -8,6 +8,7 @@ import { invalidateFeedCache } from './algos/navyfragen'
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
 const FRAGEN_NAVY = 'fragen.navy'
 const NAVYFRAGEN = 'navyfragen'
+const NAVYFRAGEN_APP = 'navyfragen.app'
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
   async handleEvent(evt: RepoEvent) {
@@ -26,7 +27,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
         }
 
         const text = create.record.text.toLowerCase()
-        const textMatch = text.includes(FRAGEN_NAVY)
+        const textMatch = text.includes(FRAGEN_NAVY) || text.includes(NAVYFRAGEN_APP)
 
         let imageAltMatch = false
         if (

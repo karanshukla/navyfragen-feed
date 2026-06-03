@@ -236,6 +236,31 @@ export class FeedGenerator {
           .values(postsToCreate)
           .onConflict((oc) => oc.doNothing())
           .execute()
+        postsToCreate.length = 0
+      }
+
+      const appResults = await this.agent.api.app.bsky.feed.searchPosts({
+        q: 'navyfragen.app',
+        limit: 100,
+      })
+      for (const post of appResults.data.posts) {
+        if (new Date(post.indexedAt) < twoWeeksAgo || uniqueUris.has(post.uri))
+          continue
+        uniqueUris.add(post.uri)
+        postsToCreate.push({
+          uri: post.uri,
+          cid: post.cid,
+          indexedAt: new Date(post.indexedAt).toISOString(),
+        })
+      }
+
+      if (postsToCreate.length > 0) {
+        console.log(`Backfilling ${postsToCreate.length} posts`)
+        await this.db
+          .insertInto('post')
+          .values(postsToCreate)
+          .onConflict((oc) => oc.doNothing())
+          .execute()
       }
     } catch (err) {
       console.error('Backfill error', err)
