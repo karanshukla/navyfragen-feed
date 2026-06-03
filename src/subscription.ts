@@ -20,7 +20,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
     const postsToDelete = ops.posts.deletes.map((del) => del.uri)
     const postsToCreate = ops.posts.creates.reduce(
       (acc, create) => {
-        const createdAt = new Date(create.record.createdAt).getTime()
+        const createdAt = Date.parse(create.record.createdAt)
         if (createdAt < twoWeeksAgo) {
           return acc
         }
