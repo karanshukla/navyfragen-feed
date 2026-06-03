@@ -1,6 +1,7 @@
 import http from 'http'
 import events from 'events'
 import express from 'express'
+import compression from 'compression'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import slowDown from 'express-slow-down'
@@ -39,6 +40,9 @@ export class FeedGenerator {
   static create(cfg: Config) {
     const app = express()
     app.set('trust proxy', 1)
+
+    // Compress all responses before any other middleware so every handler benefits
+    app.use(compression() as unknown as express.RequestHandler)
 
     // Security headers
     app.use(helmet())
@@ -94,9 +98,15 @@ export class FeedGenerator {
     })
     app.use(speedLimiter)
 
-    // Cache-Control for feed skeleton: matches the 5-minute in-process feed cache TTL
+    // Feed skeleton: 10-minute cache with 2-minute stale grace period
     app.use('/xrpc/app.bsky.feed.getFeedSkeleton', (_req, res, next) => {
-      res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60')
+      res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=120')
+      next()
+    })
+
+    // describeFeedGenerator is static metadata that almost never changes
+    app.use('/xrpc/app.bsky.feed.describeFeedGenerator', (_req, res, next) => {
+      res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=600')
       next()
     })
 

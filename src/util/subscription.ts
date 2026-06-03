@@ -40,7 +40,7 @@ export abstract class FirehoseSubscriptionBase {
         this.updateCursor(this.cursor)
         this.lastSavedCursor = this.cursor
       }
-    }, 5000)
+    }, 30_000)
 
     try {
       for await (const evt of this.sub) {
