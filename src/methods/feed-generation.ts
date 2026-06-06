@@ -59,6 +59,11 @@ export default function (server: Server, ctx: AppContext) {
       )
     } catch (e) {
       if (e instanceof AuthRequiredError) {
+        if (ctx.cfg.requireAuth) {
+          throw new AuthRequiredError(
+            'Valid ATProto service auth is required to access this feed.',
+          )
+        }
         requesterDid = undefined
       } else {
         throw e
