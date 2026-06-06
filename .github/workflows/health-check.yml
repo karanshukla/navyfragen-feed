@@ -23,28 +23,27 @@ jobs:
           feed_uri=$(echo "$response" | jq -r '.feeds[0].uri')
           echo "feed_uri=$feed_uri" >> "$GITHUB_OUTPUT"
 
-      - name: Fetch feed skeleton
+      - name: Verify auth enforcement on feed skeleton
         id: skeleton
         run: |
           feed_uri="${{ steps.describe.outputs.feed_uri }}"
-          response=$(curl -sf --max-time 15 --compressed \
-            "https://feed.navyfragen.app/xrpc/app.bsky.feed.getFeedSkeleton?feed=${feed_uri}&limit=30")
-          echo "$response" | jq .
-          # Fail if response doesn't have a feed key
-          echo "$response" | jq -e 'has("feed")' > /dev/null
-          # Warn (but don't fail) if feed is empty
-          count=$(echo "$response" | jq '.feed | length')
-          echo "Post count: $count"
-          if [ "$count" -eq 0 ]; then
-            echo "::warning::Feed returned 0 posts — firehose may not be indexing or database is empty"
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            "https://feed.navyfragen.app/xrpc/app.bsky.feed.getFeedSkeleton?feed=${feed_uri}&limit=1")
+          echo "HTTP status: $status"
+          if [ "$status" = "401" ]; then
+            echo "Auth correctly enforced (HTTP 401)"
+          elif [ "$status" = "200" ]; then
+            echo "::warning::Feed returned 200 without auth — FEEDGEN_REQUIRE_AUTH may be set to false"
+          else
+            echo "::error::Unexpected status $status from getFeedSkeleton"
+            exit 1
           fi
 
       - name: Check gzip compression is active
         run: |
-          feed_uri="${{ steps.describe.outputs.feed_uri }}"
           headers=$(curl -sI --max-time 15 \
             -H "Accept-Encoding: gzip, deflate, br" \
-            "https://feed.navyfragen.app/xrpc/app.bsky.feed.getFeedSkeleton?feed=${feed_uri}&limit=1")
+            "https://feed.navyfragen.app/xrpc/app.bsky.feed.describeFeedGenerator")
           echo "$headers"
           echo "$headers" | grep -i "content-encoding: gzip" > /dev/null || \
             echo "::warning::Response is not gzip-encoded — check compression middleware"
