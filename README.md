@@ -1,6 +1,6 @@
 # navyfragen-feed
 
-A [Bluesky](https://bsky.app) custom feed generator for [Navy Fragen](https://fragen.navy) content. Surfaces posts that contain `fragen.navy` in their text, or images with `navyfragen` in the alt text.
+A [Bluesky](https://bsky.app) custom feed generator for [NavyFragen](https://navyfragen.app) content. Surfaces posts that contain `fragen.navy` in their text, or images with `navyfragen` in the alt text.
 
 Built on the [AT Protocol](https://atproto.com) using the official feed generator starter kit.
 
