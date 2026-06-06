@@ -27,6 +27,7 @@ const run = async () => {
     serviceDid: serviceDid as string,
     handle: maybeStr(process.env.FEEDGEN_HANDLE),
     appPassword: maybeStr(process.env.FEEDGEN_APP_PASSWORD),
+    requireAuth: process.env.FEEDGEN_REQUIRE_AUTH !== 'false',
   })
   await server.start()
   console.log(

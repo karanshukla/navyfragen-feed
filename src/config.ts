@@ -19,4 +19,5 @@ export type Config = {
   subscriptionReconnectDelay: number
   handle?: string
   appPassword?: string
+  requireAuth: boolean
 }
