@@ -8,9 +8,6 @@ on:
 permissions:
   contents: read
 
-permissions:
-  contents: read
-
 jobs:
   integration:
     runs-on: ubuntu-latest
@@ -26,13 +23,16 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Build
+        run: yarn build
+
       - name: Start feed generator in dev mode
         env:
           FEEDGEN_PORT: 3000
           FEEDGEN_LISTENHOST: 127.0.0.1
           FEEDGEN_PUBLISHER_DID: did:example:ci
           FEEDGEN_REQUIRE_AUTH: 'false'
-        run: yarn start &> /tmp/feed-server.log &
+        run: node dist/index.js &> /tmp/feed-server.log &
 
       - name: Wait for server to be ready
         run: |
