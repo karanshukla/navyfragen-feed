@@ -1,0 +1,68 @@
+name: Dev integration test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Start feed generator in dev mode
+        env:
+          FEEDGEN_PORT: 3000
+          FEEDGEN_LISTENHOST: 127.0.0.1
+          FEEDGEN_PUBLISHER_DID: did:example:ci
+          FEEDGEN_REQUIRE_AUTH: 'false'
+        run: yarn start &> /tmp/feed-server.log &
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 2 \
+              http://127.0.0.1:3000/xrpc/app.bsky.feed.describeFeedGenerator > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Server did not start in time. Logs:"
+              cat /tmp/feed-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Check describeFeedGenerator
+        run: |
+          response=$(curl -sf http://127.0.0.1:3000/xrpc/app.bsky.feed.describeFeedGenerator)
+          echo "$response" | jq .
+          echo "$response" | jq -e '.feeds | length > 0' > /dev/null
+
+      - name: Check getFeedSkeleton returns feed array
+        run: |
+          feed_uri="at://did:example:ci/app.bsky.feed.generator/navyfragen"
+          response=$(curl -sf \
+            "http://127.0.0.1:3000/xrpc/app.bsky.feed.getFeedSkeleton?feed=${feed_uri}&limit=10")
+          echo "$response" | jq .
+          echo "$response" | jq -e 'has("feed")' > /dev/null
+          echo "Feed structure valid ($(echo "$response" | jq '.feed | length') posts in dev DB)"
+
+      - name: Check well-known DID document
+        run: |
+          curl -sf http://127.0.0.1:3000/.well-known/did.json | jq .
+
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/feed-server.log
