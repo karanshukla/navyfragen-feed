@@ -15,8 +15,8 @@ const unauthenticatedRateLimiter = new Map<
 >()
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
-const MAX_REQUESTS_PER_WINDOW_AUTH = 4
-const MAX_REQUESTS_PER_WINDOW_UNAUTH = 2
+const MAX_REQUESTS_PER_WINDOW_AUTH = 15
+const MAX_REQUESTS_PER_WINDOW_UNAUTH = 5
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 const cleanupRateLimiters = () => {
