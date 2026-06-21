@@ -241,8 +241,15 @@ export class FeedGenerator {
           .onConflict((oc) => oc.doNothing())
           .execute()
       }
-    } catch (err) {
-      console.error('Backfill error', err)
+    } catch (err: any) {
+      if (err?.status === 401 || err?.error === 'AuthenticationRequired') {
+        console.warn(
+          'Backfill skipped: invalid FEEDGEN_HANDLE or FEEDGEN_APP_PASSWORD. ' +
+          'Generate a new app password at bsky.app → Settings → App Passwords.',
+        )
+      } else {
+        console.error('Backfill error:', err?.message ?? err)
+      }
     }
   }
 
