@@ -8,9 +8,8 @@ export const createDb = (location: string): Database => {
   db.pragma('journal_mode = WAL')
   db.pragma('synchronous = NORMAL')
   db.pragma('foreign_keys = ON')
-  db.pragma('temp_store = MEMORY')
-  db.pragma('mmap_size = 134217728') // 128MB
-  db.pragma('cache_size = -2000') // 2MB
+  db.pragma('mmap_size = 16777216') // 16MB — enough for a small feed
+  db.pragma('cache_size = -1000') // 1MB page cache
   return new Kysely<DatabaseSchema>({
     dialect: new SqliteDialect({
       database: db,

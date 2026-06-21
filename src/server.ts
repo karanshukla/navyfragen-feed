@@ -42,45 +42,23 @@ export class FeedGenerator {
     const app = express()
     app.set('trust proxy', 1)
 
-    // Compress all responses before any other middleware so every handler benefits
+    // Allowlist first — unknown paths get a silent 404 before touching any
+    // other middleware (compression, rate limiting, etc.)
+    const ALLOWED_PATHS = new Set([
+      '/.well-known/did.json',
+      '/xrpc/app.bsky.feed.getFeedSkeleton',
+      '/xrpc/app.bsky.feed.describeFeedGenerator',
+    ])
+    app.use((req, res, next) => {
+      if (ALLOWED_PATHS.has(req.path)) return next()
+      return res.status(404).send()
+    })
+
+    // Compress all responses
     app.use(compression() as unknown as express.RequestHandler)
 
     // Security headers
     app.use(helmet())
-
-    // Block scanner/exploit traffic before any rate-limit tracking
-    app.use((req, res, next) => {
-      const bogusPatterns = [
-        /\.php/i,
-        /\.asp/i,
-        /\.env/i,
-        /\.git/i,
-        /\.xml/i,
-        /wp-admin/i,
-        /wp-login/i,
-        /wp-content/i,
-        /xmlrpc/i,
-        /shell/i,
-        /exploit/i,
-        /\/admin/i,
-        /\/actuator/i,
-        /\/config/i,
-        /\/backup/i,
-        /\/cgi-bin/i,
-        /phpmyadmin/i,
-        /\/setup/i,
-        /\/install/i,
-        /\/vendor/i,
-        /\/boaform/i,
-        /\/solr/i,
-        /\/telescope/i,
-        /\/debug/i,
-      ]
-      if (bogusPatterns.some((pattern) => pattern.test(req.path))) {
-        return res.status(404).send()
-      }
-      next()
-    })
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
@@ -263,8 +241,15 @@ export class FeedGenerator {
           .onConflict((oc) => oc.doNothing())
           .execute()
       }
-    } catch (err) {
-      console.error('Backfill error', err)
+    } catch (err: any) {
+      if (err?.status === 401 || err?.error === 'AuthenticationRequired') {
+        console.warn(
+          'Backfill skipped: invalid FEEDGEN_HANDLE or FEEDGEN_APP_PASSWORD. ' +
+          'Generate a new app password at bsky.app → Settings → App Passwords.',
+        )
+      } else {
+        console.error('Backfill error:', err?.message ?? err)
+      }
     }
   }
 
@@ -297,6 +282,12 @@ export class FeedGenerator {
       this.pruneOldPosts()
       setInterval(() => this.pruneOldPosts(), 24 * 60 * 60 * 1000)
     }, midnight.getTime() - now.getTime())
+
+    setInterval(() => {
+      const m = process.memoryUsage()
+      const mb = (n: number) => (n / 1024 / 1024).toFixed(1)
+      console.log(`Memory: heap ${mb(m.heapUsed)}/${mb(m.heapTotal)} MB, RSS ${mb(m.rss)} MB`)
+    }, 5 * 60 * 1000)
 
     this.firehose.run(this.cfg.subscriptionReconnectDelay)
     this.server = this.app.listen(this.cfg.port, this.cfg.listenhost)
