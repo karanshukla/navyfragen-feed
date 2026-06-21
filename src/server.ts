@@ -119,7 +119,7 @@ export class FeedGenerator {
 
     let agent: AtpAgent | undefined = undefined
     if (cfg.handle && cfg.appPassword) {
-      agent = new AtpAgent({ service: 'https://bsky.social' })
+      agent = new AtpAgent({ service: cfg.pdsUrl })
     }
 
     return new FeedGenerator(app, db, firehose, cfg, agent)

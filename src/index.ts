@@ -29,6 +29,7 @@ const run = async () => {
     appPassword: maybeStr(process.env.FEEDGEN_APP_PASSWORD),
     requireAuth: process.env.FEEDGEN_REQUIRE_AUTH !== 'false',
     retentionDays: maybeInt(process.env.FEEDGEN_RETENTION_DAYS) ?? 30,
+    pdsUrl: maybeStr(process.env.FEEDGEN_PDS_URL) ?? 'https://bsky.social',
   })
   await server.start()
   console.log(
