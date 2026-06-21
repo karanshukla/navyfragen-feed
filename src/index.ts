@@ -18,7 +18,7 @@ const run = async () => {
     sqliteLocation: maybeStr(process.env.FEEDGEN_SQLITE_LOCATION) ?? ':memory:',
     subscriptionEndpoint:
       maybeStr(process.env.FEEDGEN_SUBSCRIPTION_ENDPOINT) ??
-      'wss://bsky.network',
+      'wss://jetstream.bsky.network',
     publisherDid:
       maybeStr(process.env.FEEDGEN_PUBLISHER_DID) ?? 'did:example:alice',
     subscriptionReconnectDelay:
@@ -28,6 +28,7 @@ const run = async () => {
     handle: maybeStr(process.env.FEEDGEN_HANDLE),
     appPassword: maybeStr(process.env.FEEDGEN_APP_PASSWORD),
     requireAuth: process.env.FEEDGEN_REQUIRE_AUTH !== 'false',
+    retentionDays: maybeInt(process.env.FEEDGEN_RETENTION_DAYS) ?? 30,
   })
   await server.start()
   console.log(

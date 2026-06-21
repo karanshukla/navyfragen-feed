@@ -20,4 +20,5 @@ export type Config = {
   handle?: string
   appPassword?: string
   requireAuth: boolean
+  retentionDays: number
 }
