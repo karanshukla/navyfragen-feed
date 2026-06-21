@@ -42,15 +42,8 @@ export class FeedGenerator {
     const app = express()
     app.set('trust proxy', 1)
 
-    // Compress all responses before any other middleware so every handler benefits
-    app.use(compression() as unknown as express.RequestHandler)
-
-    // Security headers
-    app.use(helmet())
-
-    // Allowlist: only serve the three paths this feed generator legitimately exposes.
-    // Everything else (scanners, exploit probes, typos) gets a silent 404 before
-    // touching the rate limiter or any application logic.
+    // Allowlist first — unknown paths get a silent 404 before touching any
+    // other middleware (compression, rate limiting, etc.)
     const ALLOWED_PATHS = new Set([
       '/.well-known/did.json',
       '/xrpc/app.bsky.feed.getFeedSkeleton',
@@ -60,6 +53,12 @@ export class FeedGenerator {
       if (ALLOWED_PATHS.has(req.path)) return next()
       return res.status(404).send()
     })
+
+    // Compress all responses
+    app.use(compression() as unknown as express.RequestHandler)
+
+    // Security headers
+    app.use(helmet())
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
@@ -276,6 +275,12 @@ export class FeedGenerator {
       this.pruneOldPosts()
       setInterval(() => this.pruneOldPosts(), 24 * 60 * 60 * 1000)
     }, midnight.getTime() - now.getTime())
+
+    setInterval(() => {
+      const m = process.memoryUsage()
+      const mb = (n: number) => (n / 1024 / 1024).toFixed(1)
+      console.log(`Memory: heap ${mb(m.heapUsed)}/${mb(m.heapTotal)} MB, RSS ${mb(m.rss)} MB`)
+    }, 5 * 60 * 1000)
 
     this.firehose.run(this.cfg.subscriptionReconnectDelay)
     this.server = this.app.listen(this.cfg.port, this.cfg.listenhost)
