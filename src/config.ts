@@ -21,4 +21,5 @@ export type Config = {
   appPassword?: string
   requireAuth: boolean
   retentionDays: number
+  pdsUrl: string
 }
