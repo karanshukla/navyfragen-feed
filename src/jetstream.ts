@@ -148,6 +148,9 @@ export class JetstreamSubscription {
       .onConflict((oc) => oc.doNothing())
       .execute()
 
+    const matchReason = textMatch ? 'text' : 'image-alt'
+    console.log(`New post indexed [${matchReason}]: ${uri}`)
+
     invalidateFeedCache()
   }
 

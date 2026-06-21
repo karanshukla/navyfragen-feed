@@ -84,7 +84,7 @@ export class FeedGenerator {
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 20, // 20 requests per 15 minutes per IP
+      max: 200, // 200 requests per 15 minutes per IP
       standardHeaders: true,
       legacyHeaders: false,
       message: 'Too many requests, please try again later.',
@@ -94,8 +94,8 @@ export class FeedGenerator {
     // Speed limiting (slow down repetitive requests)
     const speedLimiter = slowDown({
       windowMs: 15 * 60 * 1000,
-      delayAfter: 5, // start adding delay after 5 requests
-      delayMs: (hits) => hits * 500,
+      delayAfter: 50, // start adding delay after 50 requests
+      delayMs: (hits) => hits * 200,
     })
     app.use(speedLimiter)
 
