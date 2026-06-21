@@ -48,38 +48,17 @@ export class FeedGenerator {
     // Security headers
     app.use(helmet())
 
-    // Block scanner/exploit traffic before any rate-limit tracking
+    // Allowlist: only serve the three paths this feed generator legitimately exposes.
+    // Everything else (scanners, exploit probes, typos) gets a silent 404 before
+    // touching the rate limiter or any application logic.
+    const ALLOWED_PATHS = new Set([
+      '/.well-known/did.json',
+      '/xrpc/app.bsky.feed.getFeedSkeleton',
+      '/xrpc/app.bsky.feed.describeFeedGenerator',
+    ])
     app.use((req, res, next) => {
-      const bogusPatterns = [
-        /\.php/i,
-        /\.asp/i,
-        /\.env/i,
-        /\.git/i,
-        /\.xml/i,
-        /wp-admin/i,
-        /wp-login/i,
-        /wp-content/i,
-        /xmlrpc/i,
-        /shell/i,
-        /exploit/i,
-        /\/admin/i,
-        /\/actuator/i,
-        /\/config/i,
-        /\/backup/i,
-        /\/cgi-bin/i,
-        /phpmyadmin/i,
-        /\/setup/i,
-        /\/install/i,
-        /\/vendor/i,
-        /\/boaform/i,
-        /\/solr/i,
-        /\/telescope/i,
-        /\/debug/i,
-      ]
-      if (bogusPatterns.some((pattern) => pattern.test(req.path))) {
-        return res.status(404).send()
-      }
-      next()
+      if (ALLOWED_PATHS.has(req.path)) return next()
+      return res.status(404).send()
     })
 
     const limiter = rateLimit({
