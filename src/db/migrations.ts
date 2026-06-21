@@ -41,3 +41,6 @@ migrations['002'] = {
     await db.schema.dropIndex('post_indexed_at_idx').execute()
   },
 }
+
+// Migration 003 is intentionally omitted — the existing post_indexed_at_idx
+// from migration 002 already covers both ASC and DESC range scans in SQLite.

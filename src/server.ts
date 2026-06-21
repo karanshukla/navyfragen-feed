@@ -1,6 +1,7 @@
 import http from 'http'
 import events from 'events'
 import express from 'express'
+import { sql } from 'kysely'
 import compression from 'compression'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -11,7 +12,7 @@ import { createServer } from './lexicon'
 import feedGeneration from './methods/feed-generation'
 import describeGenerator from './methods/describe-generator'
 import { createDb, Database, migrateToLatest } from './db'
-import { FirehoseSubscription } from './subscription'
+import { JetstreamSubscription } from './jetstream'
 import { AppContext, Config } from './config'
 import wellKnown from './well-known'
 
@@ -19,14 +20,14 @@ export class FeedGenerator {
   public app: express.Application
   public server?: http.Server
   public db: Database
-  public firehose: FirehoseSubscription
+  public firehose: JetstreamSubscription
   public agent?: AtpAgent
   public cfg: Config
 
   constructor(
     app: express.Application,
     db: Database,
-    firehose: FirehoseSubscription,
+    firehose: JetstreamSubscription,
     cfg: Config,
     agent?: AtpAgent,
   ) {
@@ -111,7 +112,7 @@ export class FeedGenerator {
     })
 
     const db = createDb(cfg.sqliteLocation)
-    const firehose = new FirehoseSubscription(db, cfg.subscriptionEndpoint)
+    const firehose = new JetstreamSubscription(db, cfg.subscriptionEndpoint, cfg.retentionDays)
 
     const didCache = new MemoryCache()
     const didResolver = new DidResolver({
@@ -158,7 +159,7 @@ export class FeedGenerator {
         password: this.cfg.appPassword!,
       })
       const twoWeeksAgo = new Date()
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - this.cfg.retentionDays)
 
       const uniqueUris = new Set<string>()
       const postsToCreate: { uri: string; cid: string; indexedAt: string }[] =
@@ -267,9 +268,36 @@ export class FeedGenerator {
     }
   }
 
+  async pruneOldPosts() {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - this.cfg.retentionDays)
+    const cutoffStr = cutoff.toISOString()
+
+    const result = await this.db
+      .deleteFrom('post')
+      .where('indexedAt', '<', cutoffStr)
+      .executeTakeFirst()
+
+    console.log(`Pruned ${result.numDeletedRows} posts older than ${cutoffStr}`)
+
+    if (this.cfg.sqliteLocation !== ':memory:') {
+      await sql`VACUUM`.execute(this.db)
+      console.log('Ran VACUUM to reclaim database space')
+    }
+  }
+
   async start(): Promise<http.Server> {
     await migrateToLatest(this.db)
     await this.backfill()
+    await this.pruneOldPosts()
+
+    const now = new Date()
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    setTimeout(() => {
+      this.pruneOldPosts()
+      setInterval(() => this.pruneOldPosts(), 24 * 60 * 60 * 1000)
+    }, midnight.getTime() - now.getTime())
+
     this.firehose.run(this.cfg.subscriptionReconnectDelay)
     this.server = this.app.listen(this.cfg.port, this.cfg.listenhost)
     await events.once(this.server, 'listening')

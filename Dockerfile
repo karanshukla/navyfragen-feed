@@ -37,5 +37,8 @@ COPY --from=builder /app/src/lexicon ./src/lexicon
 # Expose the port the app runs on
 EXPOSE 3000
 
+# Set Node.js memory limit (256MB)
+ENV NODE_OPTIONS=--max-old-space-size=256
+
 # Define the command to run the application
 CMD ["node", "dist/index.js"]

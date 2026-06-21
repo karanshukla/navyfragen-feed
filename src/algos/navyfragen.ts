@@ -8,7 +8,8 @@ type FeedResult = { cursor: string | undefined; feed: { post: string }[] }
 type CacheEntry = { result: FeedResult; expires: number }
 
 const feedCache = new Map<string, CacheEntry>()
-const CACHE_TTL_MS = 5 * 60_000 // 5 minutes; invalidated early when new posts arrive
+const CACHE_TTL_MS = 2 * 60_000 // 2 minutes; invalidated early when new posts arrive
+const MAX_CACHE_ENTRIES = 100
 
 // Throttle invalidations to at most once per 60s so the cache stays warm
 // during rapid bursts of matching posts.
@@ -59,6 +60,11 @@ export const handler = async (ctx: AppContext, params: QueryParams) => {
 
   const result: FeedResult = { cursor, feed }
   feedCache.set(cacheKey, { result, expires: now + CACHE_TTL_MS })
+
+  if (feedCache.size > MAX_CACHE_ENTRIES) {
+    const firstKey = feedCache.keys().next().value
+    if (firstKey !== undefined) feedCache.delete(firstKey)
+  }
 
   return result
 }

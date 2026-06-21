@@ -9,9 +9,9 @@
   "scripts": {
     "publishFeed": "ts-node scripts/publishFeedGen.ts",
     "unpublishFeed": "ts-node scripts/unpublishFeedGen.ts",
-    "start": "yarn build && node dist/index.js",
+    "start": "NODE_OPTIONS=--max-old-space-size=256 yarn build && node dist/index.js",
     "build": "tsc",
-    "dev": "nodemon --watch src --ext ts --exec \"yarn build && node dist/index.js\""
+    "dev": "NODE_OPTIONS=--max-old-space-size=256 nodemon --watch src --ext ts --exec \"yarn build && node dist/index.js\""
   },
   "dependencies": {
     "@atproto/api": "^0.13.28",
@@ -31,12 +31,14 @@
     "express-slow-down": "^3.1.0",
     "helmet": "^8.1.0",
     "kysely": "^0.27.4",
-    "multiformats": "^9.9.0"
+    "multiformats": "^9.9.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/express": "^4.17.17",
     "@types/node": "^20.1.2",
+    "@types/ws": "^8.18.1",
     "inquirer": "^12.0.1",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.1",

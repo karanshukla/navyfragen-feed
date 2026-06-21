@@ -4,25 +4,32 @@ import {
 } from './lexicon/types/com/atproto/sync/subscribeRepos'
 import { FirehoseSubscriptionBase, getOpsByType } from './util/subscription'
 import { invalidateFeedCache } from './algos/navyfragen'
+import { Database } from './db'
 
-const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000
 const FRAGEN_NAVY = 'fragen.navy'
 const NAVYFRAGEN = 'navyfragen'
 const NAVYFRAGEN_APP = 'navyfragen.app'
 
 export class FirehoseSubscription extends FirehoseSubscriptionBase {
+  private retentionMs: number
+
+  constructor(db: Database, service: string, retentionDays: number = 30) {
+    super(db, service)
+    this.retentionMs = retentionDays * 24 * 60 * 60 * 1000
+  }
+
   async handleEvent(evt: RepoEvent) {
     if (!isCommit(evt)) return
 
     const ops = await getOpsByType(evt)
     const now = Date.now()
-    const twoWeeksAgo = now - TWO_WEEKS_MS
+    const cutoffMs = now - this.retentionMs
 
     const postsToDelete = ops.posts.deletes.map((del) => del.uri)
     const postsToCreate = ops.posts.creates.reduce(
       (acc, create) => {
         const createdAt = Date.parse(create.record.createdAt)
-        if (createdAt < twoWeeksAgo) {
+        if (createdAt < cutoffMs) {
           return acc
         }
 
@@ -31,7 +38,7 @@ export class FirehoseSubscription extends FirehoseSubscriptionBase {
 
         let imageAltMatch = false
         if (
-          !textMatch && // Skip if already matched
+          !textMatch &&
           create.record.embed &&
           (create.record.embed.$type === 'app.bsky.embed.images#main' ||
             create.record.embed.$type === 'app.bsky.embed.images') &&
