@@ -276,6 +276,11 @@ export class FeedGenerator {
     await this.backfill()
     await this.pruneOldPosts()
 
+    // Re-run backfill every 6 hours to recover posts missed due to federation lag
+    setInterval(() => {
+      this.backfill().catch((err) => console.error('Periodic backfill error:', err))
+    }, 6 * 60 * 60 * 1000)
+
     const now = new Date()
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
     setTimeout(() => {
