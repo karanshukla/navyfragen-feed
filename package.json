@@ -30,7 +30,7 @@
     "express-rate-limit": "^8.4.1",
     "express-slow-down": "^3.1.0",
     "helmet": "^8.1.0",
-    "kysely": "^0.27.4",
+    "kysely": "^0.28.17",
     "multiformats": "^9.9.0",
     "ws": "^8.21.0"
   },
@@ -46,7 +46,9 @@
   },
   "resolutions": {
     "axios": "^1.8.4",
-    "zod": "^3.24.0"
+    "zod": "^3.24.0",
+    "body-parser": "^1.20.6",
+    "brace-expansion": "^5.0.8"
   },
   "engines": {
     "node": ">= 18",
