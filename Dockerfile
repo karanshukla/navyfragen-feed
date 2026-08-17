@@ -1,5 +1,5 @@
-# Use the official Node.js 20 image as a parent image
-FROM node:20-alpine AS builder
+# Use the official Node.js 24 (LTS) image as a parent image
+FROM node:24-alpine AS builder
 
 # Set the working directory in the container
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY . .
 RUN yarn build
 
 # Start a new stage for the production image
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Set the working directory in the container
 WORKDIR /app
@@ -30,9 +30,6 @@ RUN yarn install --production --frozen-lockfile
 
 # Copy the compiled code from the builder stage
 COPY --from=builder /app/dist ./dist
-
-# Copy the lexicon files
-COPY --from=builder /app/src/lexicon ./src/lexicon
 
 # Expose the port the app runs on
 EXPOSE 3000

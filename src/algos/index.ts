@@ -1,9 +1,9 @@
+import { AppBskyFeedGetFeedSkeleton } from '@atproto/api'
 import { AppContext } from '../config'
-import {
-  QueryParams,
-  OutputSchema as AlgoOutput,
-} from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
 import * as navyFragen from './navyfragen'
+
+type QueryParams = AppBskyFeedGetFeedSkeleton.QueryParams
+type AlgoOutput = AppBskyFeedGetFeedSkeleton.OutputSchema
 
 type AlgoHandler = (ctx: AppContext, params: QueryParams) => Promise<AlgoOutput>
 

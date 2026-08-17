@@ -7,8 +7,8 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import slowDown from 'express-slow-down'
 import { DidResolver, MemoryCache } from '@atproto/identity'
-import { AtpAgent } from '@atproto/api'
-import { createServer } from './lexicon'
+import { AtpAgent, schemas } from '@atproto/api'
+import { createServer } from '@atproto/xrpc-server'
 import feedGeneration from './methods/feed-generation'
 import describeGenerator from './methods/describe-generator'
 import { createDb, Database, migrateToLatest } from './db'
@@ -98,7 +98,10 @@ export class FeedGenerator {
       didCache,
     })
 
-    const server = createServer({
+    // Lexicon schemas ship with @atproto/api, which is already loaded for the
+    // backfill agent — so reusing them here costs no extra memory and keeps the
+    // definitions current with the package rather than a checked-in snapshot.
+    const server = createServer(schemas, {
       validateResponse: false, // Reduced CPU/Memory by disabling response validation
       payload: {
         jsonLimit: 50 * 1024, // Reduced to 50kb
@@ -114,7 +117,9 @@ export class FeedGenerator {
     }
     feedGeneration(server, ctx)
     describeGenerator(server, ctx)
-    app.use(server.xrpc.router)
+    // `server.router` (not `server.routes`) carries the XRPC error middleware
+    // that renders thrown XRPCErrors as proper JSON error responses.
+    app.use(server.router)
     app.use(wellKnown(ctx))
 
     let agent: AtpAgent | undefined = undefined
