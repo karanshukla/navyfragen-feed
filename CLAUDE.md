@@ -14,7 +14,24 @@ yarn unpublishFeed  # delete the feed record from Bluesky
 
 There are no tests. Build (`yarn build`) is the primary correctness check — always run it after changes. The `dev-integration` workflow additionally boots the server and curls `describeFeedGenerator`, `getFeedSkeleton`, and `/.well-known/did.json`.
 
-**Node 24 (LTS) is required.** The `@atproto/*` packages are ESM-only and declare `engines: node >= 22`; the build emits CommonJS that `require()`s them, which needs 22.12+. `better-sqlite3` must stay on v12+ — v11 publishes no prebuilt binary for Node 24's ABI and would fall back to a source build that `node:24-alpine` cannot perform.
+**Node 24 (LTS) is required.** The `@atproto/*` packages are ESM-only and declare `engines: node >= 22`; the build emits CommonJS that `require()`s them, which needs 22.12+.
+
+**Pin `better-sqlite3` to the 12.x line. Do not bump it to 13.** The runtime image is `node:24-alpine`, which is musl and ships no python/make/g++, so a source build is impossible. `better-sqlite3` must therefore find a prebuilt binary matching both Node's ABI and musl, published as `better-sqlite3-v<ver>-node-v<abi>-linuxmusl-x64.tar.gz`. Node 24 is ABI 137, and only 12.x publishes that asset:
+
+| Version | ABI 137 musl prebuild |
+|---|---|
+| 11.x | no (this is why Node 24 needs >= 12) |
+| 12.11.1 | yes |
+| 13.x | no — publishes no prebuilds at all, for any ABI or libc |
+
+Before changing this dependency, check the asset actually exists:
+
+```bash
+curl -sI -o /dev/null -w '%{http_code}\n' \
+  https://github.com/WiseLibs/better-sqlite3/releases/download/v<ver>/better-sqlite3-v<ver>-node-v137-linuxmusl-x64.tar.gz
+```
+
+302 means it exists, 404 means the Docker build will fail at `yarn install` with `gyp ERR! find Python`. Note that a local install on a glibc machine proves nothing about this, and a warm Yarn cache will mask a source build entirely. Verify cold, or just check the URL.
 
 ## Architecture
 
