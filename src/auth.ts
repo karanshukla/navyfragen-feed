@@ -13,8 +13,11 @@ export const validateAuth = async (
   }
   const jwt = authorization.replace('Bearer ', '').trim()
   const nsid = parseReqNsid(req)
-  const parsed = await verifyJwt(jwt, serviceDid, nsid, async (did: string) => {
-    return didResolver.resolveAtprotoKey(did)
+  const parsed = await verifyJwt(jwt, serviceDid, nsid, async (iss, forceRefresh) => {
+    // `iss` may carry a key fragment (e.g. `did:plc:abc#atproto_labeler`);
+    // the DID resolver expects the bare DID.
+    const [did] = iss.split('#')
+    return didResolver.resolveAtprotoKey(did, forceRefresh)
   })
   return parsed.iss
 }

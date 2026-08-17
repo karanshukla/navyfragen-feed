@@ -6,10 +6,14 @@ Built on the [AT Protocol](https://atproto.com) using the official feed generato
 
 ## How it works
 
-1. **Firehose subscription** — connects to `wss://bsky.network` and processes the full Bluesky event stream in real-time. Only post operations are decoded; non-post commits are skipped before any expensive CAR/CBOR parsing.
+1. **Jetstream subscription** — connects to a [Jetstream](https://github.com/bluesky-social/jetstream) endpoint and consumes the Bluesky event stream as JSON, filtered server-side to `app.bsky.feed.post`. This uses far less bandwidth, CPU, and memory than the raw firehose, since no CAR/CBOR decoding is needed.
 2. **Matching logic** — each post is checked for `fragen.navy` in text, or `navyfragen` in image alt text. Matches are stored in a local SQLite database.
-3. **Startup backfill** — on each startup, recent posts are recovered via Bluesky's search API (past 2 weeks) to fill any gap caused by downtime or redeployment.
-4. **Feed serving** — the `app.bsky.feed.getFeedSkeleton` XRPC endpoint returns a cursor-paginated list of matching post URIs, with an in-process 5-minute cache.
+3. **Startup backfill** — on each startup, recent posts are recovered via Bluesky's search API to fill any gap caused by downtime or redeployment.
+4. **Feed serving** — the `app.bsky.feed.getFeedSkeleton` XRPC endpoint returns a cursor-paginated list of matching post URIs, with a short in-process cache.
+
+## Requirements
+
+Node **24 (LTS)**. The `@atproto/*` packages are ESM-only as of `@atproto/xrpc-server` 0.11 and declare `engines: node >= 22`; the compiled output is CommonJS and loads them via `require()`, which needs Node 22.12+. Node 24 is the current LTS and satisfies both.
 
 ## Environment variables
 
@@ -21,8 +25,11 @@ Built on the [AT Protocol](https://atproto.com) using the official feed generato
 | `FEEDGEN_SERVICE_DID` | No | auto-generated `did:key` | DID for this service |
 | `FEEDGEN_PUBLISHER_DID` | Yes | — | DID of the Bluesky account that owns the feed |
 | `FEEDGEN_SQLITE_LOCATION` | No | `:memory:` | Path to SQLite database file. **Use a persistent volume path in production** (e.g. `/data/feed.db`) |
-| `FEEDGEN_SUBSCRIPTION_ENDPOINT` | No | `wss://bsky.network` | ATProto firehose endpoint |
-| `FEEDGEN_SUBSCRIPTION_RECONNECT_DELAY` | No | `3000` | Milliseconds to wait before reconnecting the firehose |
+| `FEEDGEN_SUBSCRIPTION_ENDPOINT` | No | `wss://jetstream1.us-east.bsky.network` | Jetstream endpoint to consume events from |
+| `FEEDGEN_SUBSCRIPTION_RECONNECT_DELAY` | No | `3000` | Milliseconds to wait before reconnecting to Jetstream |
+| `FEEDGEN_PDS_URL` | No | `https://bsky.social` | PDS for the backfill account |
+| `FEEDGEN_REQUIRE_AUTH` | No | `true` | Set to `false` to serve the feed without service auth |
+| `FEEDGEN_RETENTION_DAYS` | No | `30` | Days to retain posts before pruning |
 | `FEEDGEN_HANDLE` | No | — | Bluesky handle for backfill (e.g. `you.bsky.social`) |
 | `FEEDGEN_APP_PASSWORD` | No | — | App password for backfill. If unset, backfill is skipped |
 
@@ -70,7 +77,7 @@ yarn unpublishFeed
 src/
   index.ts            — entry point, loads config and starts the server
   server.ts           — Express app setup, FeedGenerator class, backfill logic
-  subscription.ts     — firehose event handler (matching logic)
+  jetstream.ts        — Jetstream subscription, matching logic, cursor persistence
   auth.ts             — JWT validation for incoming requests
   config.ts           — AppContext and Config types
   well-known.ts       — /.well-known/did.json endpoint
@@ -82,8 +89,6 @@ src/
   db/
     index.ts          — SQLite connection with WAL mode
     migrations.ts     — database schema migrations
-  util/
-    subscription.ts   — base firehose subscription class + cursor persistence
 scripts/
   publishFeedGen.ts   — publish/update the feed record on Bluesky
   unpublishFeedGen.ts — delete the feed record from Bluesky

@@ -1,8 +1,7 @@
 import dotenv from 'dotenv'
 import inquirer from 'inquirer'
-import { AtpAgent, BlobRef, AppBskyFeedDefs } from '@atproto/api'
+import { AtpAgent, BlobRef, AppBskyFeedDefs, ids } from '@atproto/api'
 import fs from 'fs/promises'
-import { ids } from '../src/lexicon/lexicons'
 
 const run = async () => {
   dotenv.config()

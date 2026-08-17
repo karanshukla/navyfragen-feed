@@ -1,5 +1,7 @@
-import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
+import { AppBskyFeedGetFeedSkeleton } from '@atproto/api'
 import { AppContext } from '../config'
+
+type QueryParams = AppBskyFeedGetFeedSkeleton.QueryParams
 
 // max 15 chars
 export const shortname = 'navyfragen'
@@ -24,11 +26,17 @@ export const invalidateFeedCache = () => {
   }
 }
 
-const getCacheKey = (params: QueryParams) =>
-  `${params.limit}:${params.cursor ?? ''}`
+// Matches the `limit` default declared in the app.bsky.feed.getFeedSkeleton
+// lexicon. The XRPC params verifier normally fills this in, but the generated
+// type marks it optional, so fall back explicitly.
+const DEFAULT_LIMIT = 50
+
+const getCacheKey = (limit: number, cursor?: string) =>
+  `${limit}:${cursor ?? ''}`
 
 export const handler = async (ctx: AppContext, params: QueryParams) => {
-  const cacheKey = getCacheKey(params)
+  const limit = params.limit ?? DEFAULT_LIMIT
+  const cacheKey = getCacheKey(limit, params.cursor)
   const now = Date.now()
   const cached = feedCache.get(cacheKey)
   if (cached && cached.expires > now) {
@@ -40,7 +48,7 @@ export const handler = async (ctx: AppContext, params: QueryParams) => {
     .selectAll()
     .orderBy('indexedAt', 'desc')
     .orderBy('cid', 'desc')
-    .limit(params.limit)
+    .limit(limit)
 
   if (params.cursor) {
     const timeStr = new Date(parseInt(params.cursor, 10)).toISOString()

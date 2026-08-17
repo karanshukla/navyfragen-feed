@@ -1,9 +1,13 @@
-import { InvalidRequestError, AuthRequiredError } from '@atproto/xrpc-server'
-import { Server } from '../lexicon'
+import {
+  InvalidRequestError,
+  AuthRequiredError,
+  Server,
+} from '@atproto/xrpc-server'
+import { AppBskyFeedGetFeedSkeleton, ids } from '@atproto/api'
+import { AtUri } from '@atproto/syntax'
 import { AppContext } from '../config'
 import algos from '../algos'
 import { validateAuth } from '../auth'
-import { AtUri } from '@atproto/syntax'
 
 const authenticatedRateLimiter = new Map<
   string,
@@ -36,12 +40,14 @@ const cleanupRateLimiters = () => {
 setInterval(cleanupRateLimiters, CLEANUP_INTERVAL_MS)
 
 export default function (server: Server, ctx: AppContext) {
-  server.app.bsky.feed.getFeedSkeleton(async ({ params, req }) => {
-    const feedUri = new AtUri(params.feed)
+  server.method(ids.AppBskyFeedGetFeedSkeleton, async ({ params, req }) => {
+    const { feed, limit, cursor } =
+      params as AppBskyFeedGetFeedSkeleton.QueryParams
+    const feedUri = new AtUri(feed)
     const algo = algos[feedUri.rkey]
     if (
       feedUri.hostname !== ctx.cfg.publisherDid ||
-      feedUri.collection !== 'app.bsky.feed.generator' ||
+      feedUri.collection !== ids.AppBskyFeedGenerator ||
       !algo
     ) {
       throw new InvalidRequestError(
@@ -102,10 +108,10 @@ export default function (server: Server, ctx: AppContext) {
       }
     }
 
-    const body = await algo(ctx, params)
+    const body = await algo(ctx, { feed, limit, cursor })
     return {
       encoding: 'application/json',
-      body: body,
+      body,
     }
   })
 }
