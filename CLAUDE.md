@@ -76,9 +76,9 @@ Two tables, managed by Kysely migrations in `src/db/migrations.ts`:
 
 ### Rate limiting layers
 
-1. `express-rate-limit` — 200 req / 15 min per IP (outermost)
-2. `express-slow-down` — delay added after 50 req / 15 min per IP
-3. Per-DID/IP limiter in `feed-generation.ts` — 15 req/min authenticated, 5 req/min unauthenticated
+1. `express-rate-limit`: 3000 req / 15 min per IP (outermost). `getFeedSkeleton` is called by the AppView server-side, so this per-IP budget is shared across every viewer of the feed rather than being per user. Keep it well above real traffic.
+2. `express-slow-down`: delay added after 1000 req / 15 min per IP, capped at 2s. The AppView times out a slow feed generator, so an uncapped ramp produces an empty feed rather than backpressure.
+3. Per-DID/IP limiter in `feed-generation.ts`: 100 req/min authenticated, 5 req/min unauthenticated. Trips are logged with the DID (or IP), as are auth failures with the JWT's claimed issuer, so an account-specific failure is visible in the logs.
 
 ### Auth
 

@@ -7,7 +7,7 @@ import { AppBskyFeedGetFeedSkeleton, ids } from '@atproto/api'
 import { AtUri } from '@atproto/syntax'
 import { AppContext } from '../config'
 import algos from '../algos'
-import { validateAuth } from '../auth'
+import { validateAuth, unverifiedIssuer } from '../auth'
 
 const authenticatedRateLimiter = new Map<
   string,
@@ -19,7 +19,13 @@ const unauthenticatedRateLimiter = new Map<
 >()
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
-const MAX_REQUESTS_PER_WINDOW_AUTH = 15
+// The Bluesky client refetches the skeleton on every feed open, pull-to-refresh,
+// tab switch and prefetch, per device. 15/min was low enough that an account
+// used on phone plus web could trip it while a lightly-used account never did,
+// and a tripped account just keeps showing whatever it already had, which looks
+// like "the feed stopped updating" rather than an error. This is a shield
+// against abuse, not a quota, so it sits well above normal client behaviour.
+const MAX_REQUESTS_PER_WINDOW_AUTH = 100
 const MAX_REQUESTS_PER_WINDOW_UNAUTH = 5
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -64,16 +70,29 @@ export default function (server: Server, ctx: AppContext) {
         ctx.didResolver,
       )
     } catch (e) {
-      if (e instanceof AuthRequiredError) {
-        if (ctx.cfg.requireAuth) {
-          throw new AuthRequiredError(
-            'Valid ATProto service auth is required to access this feed.',
-          )
-        }
-        requesterDid = undefined
-      } else {
-        throw e
+      // Everything thrown here comes out of validateAuth, so it is an auth
+      // failure however it is typed. Previously only AuthRequiredError was
+      // handled and anything else became a 500: a token verifyJwt rejects
+      // before it can raise AuthRequiredError (e.g. `Bearer not.a.jwt`) gave
+      // the caller an Internal Server Error instead of a 401.
+      //
+      // Log the claimed issuer so a single account failing to authenticate
+      // (rotated signing key, unreachable did:web, PDS the resolver can't
+      // reach) is distinguishable in the logs from a stale feed. Only when a
+      // token was actually presented; a request with no Authorization header
+      // is an anonymous hit, not a failure worth logging.
+      const issuer = unverifiedIssuer(req)
+      if (issuer) {
+        console.warn(
+          `Auth failed for ${issuer}: ${(e as Error).message || 'AuthRequired'}`,
+        )
       }
+      if (ctx.cfg.requireAuth) {
+        throw new AuthRequiredError(
+          'Valid ATProto service auth is required to access this feed.',
+        )
+      }
+      requesterDid = undefined
     }
 
     const now = Date.now()
@@ -82,6 +101,10 @@ export default function (server: Server, ctx: AppContext) {
       const userRate = authenticatedRateLimiter.get(requesterDid)
       if (userRate && now - userRate.lastReset < RATE_LIMIT_WINDOW_MS) {
         if (userRate.count >= MAX_REQUESTS_PER_WINDOW_AUTH) {
+          console.warn(
+            `Rate limit exceeded for ${requesterDid} ` +
+              `(${userRate.count} requests in the last ${RATE_LIMIT_WINDOW_MS}ms)`,
+          )
           throw new InvalidRequestError(
             'Rate limit exceeded for authenticated user. Please try again later.',
             'RateLimitExceeded',
@@ -97,6 +120,10 @@ export default function (server: Server, ctx: AppContext) {
 
       if (ipRate && now - ipRate.lastReset < RATE_LIMIT_WINDOW_MS) {
         if (ipRate.count >= MAX_REQUESTS_PER_WINDOW_UNAUTH) {
+          console.warn(
+            `Rate limit exceeded for unauthenticated IP ${ip} ` +
+              `(${ipRate.count} requests in the last ${RATE_LIMIT_WINDOW_MS}ms)`,
+          )
           throw new InvalidRequestError(
             'Rate limit exceeded for unauthenticated requests from this IP. Please try again later.',
             'RateLimitExceeded',
