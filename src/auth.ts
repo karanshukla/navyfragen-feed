@@ -21,3 +21,25 @@ export const validateAuth = async (
   })
   return parsed.iss
 }
+
+/**
+ * Best-effort read of the `iss` claim straight out of the JWT payload, with no
+ * signature verification. Diagnostics only: when validateAuth throws we
+ * otherwise have no idea *which* account failed, which made it impossible to
+ * tell "this one account can't authenticate" apart from "the feed is stale".
+ * Never use the result for authorization.
+ */
+export const unverifiedIssuer = (req: express.Request): string | undefined => {
+  const { authorization = '' } = req.headers
+  if (!authorization.startsWith('Bearer ')) return undefined
+  const payload = authorization.replace('Bearer ', '').trim().split('.')[1]
+  if (!payload) return undefined
+  try {
+    const claims = JSON.parse(
+      Buffer.from(payload, 'base64url').toString('utf8'),
+    )
+    return typeof claims?.iss === 'string' ? claims.iss : undefined
+  } catch {
+    return undefined
+  }
+}

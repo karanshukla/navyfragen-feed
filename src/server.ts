@@ -60,26 +60,45 @@ export class FeedGenerator {
     // Security headers
     app.use(helmet())
 
+    // getFeedSkeleton is called by the AppView server-side, not by user
+    // devices, so nearly all traffic arrives from a small pool of Bluesky
+    // egress IPs. A per-IP budget is therefore a shared budget across every
+    // viewer of the feed: 200 per 15 minutes worked out to roughly 13 req/min
+    // for the entire feed, after which whoever refreshed next got a 429 and
+    // fell back to their stale copy. Per-viewer limiting is the per-DID
+    // limiter in methods/feed-generation.ts; these two stay only as a coarse
+    // backstop against a flood, so their budgets sit far above real traffic.
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 200, // 200 requests per 15 minutes per IP
+      limit: 3000, // ~200 req/min per IP, shared across all viewers
       standardHeaders: true,
       legacyHeaders: false,
       message: 'Too many requests, please try again later.',
     })
     app.use(limiter)
 
-    // Speed limiting (slow down repetitive requests)
+    // Speed limiting (slow down repetitive requests). Capped: the AppView
+    // gives a feed generator only a few seconds before it gives up, so an
+    // uncapped hits * 200ms ramp turned into timeouts (a silently empty feed)
+    // rather than backpressure.
     const speedLimiter = slowDown({
       windowMs: 15 * 60 * 1000,
-      delayAfter: 50, // start adding delay after 50 requests
-      delayMs: (hits) => hits * 200,
+      delayAfter: 1000, // start adding delay after 1000 requests
+      delayMs: (hits) => hits * 20,
+      maxDelayMs: 2000,
     })
     app.use(speedLimiter)
 
-    // Feed skeleton: 10-minute cache with 2-minute stale grace period
+    // Feed skeleton: `private` so no shared cache (Railway's edge, the
+    // AppView's fetcher) can hold one viewer's skeleton and hand it to another.
+    // The response body is identical for every requester, but it is served
+    // behind an Authorization header, and a shared cache made the feed look
+    // stale for some accounts and fresh for others depending on which node
+    // they hit. 60s lines up with the in-process cache's invalidation throttle
+    // in src/algos/navyfragen.ts; the previous 600s meant a new post could take
+    // ten minutes to surface, and not at the same time for everyone.
     app.use('/xrpc/app.bsky.feed.getFeedSkeleton', (_req, res, next) => {
-      res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=120')
+      res.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=30')
       next()
     })
 
