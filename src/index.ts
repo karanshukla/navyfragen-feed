@@ -27,7 +27,15 @@ const run = async () => {
     serviceDid: serviceDid as string,
     handle: maybeStr(process.env.FEEDGEN_HANDLE),
     appPassword: maybeStr(process.env.FEEDGEN_APP_PASSWORD),
-    requireAuth: process.env.FEEDGEN_REQUIRE_AUTH !== 'false',
+    // Default off. The skeleton is byte-identical for every requester (see
+    // algos/navyfragen.ts, which never looks at the requester), so requiring
+    // service auth buys no privacy and only decides whether a client can load
+    // the feed at all. With it on, any client whose service auth we reject for
+    // any reason got a 401 and showed its users an empty feed. Auth is still
+    // validated when a token is presented, and the resulting DID is still used
+    // for per-viewer rate limiting; it just is not mandatory. Set
+    // FEEDGEN_REQUIRE_AUTH=true to make it mandatory again.
+    requireAuth: process.env.FEEDGEN_REQUIRE_AUTH === 'true',
     retentionDays: maybeInt(process.env.FEEDGEN_RETENTION_DAYS) ?? 30,
     pdsUrl: maybeStr(process.env.FEEDGEN_PDS_URL) ?? 'https://bsky.social',
   })

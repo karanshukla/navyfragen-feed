@@ -78,8 +78,17 @@ Two tables, managed by Kysely migrations in `src/db/migrations.ts`:
 
 1. `express-rate-limit`: 3000 req / 15 min per IP (outermost). `getFeedSkeleton` is called by the AppView server-side, so this per-IP budget is shared across every viewer of the feed rather than being per user. Keep it well above real traffic.
 2. `express-slow-down`: delay added after 1000 req / 15 min per IP, capped at 2s. The AppView times out a slow feed generator, so an uncapped ramp produces an empty feed rather than backpressure.
-3. Per-DID/IP limiter in `feed-generation.ts`: 100 req/min authenticated, 5 req/min unauthenticated. Trips are logged with the DID (or IP), as are auth failures with the JWT's claimed issuer, so an account-specific failure is visible in the logs.
+3. Per-DID/IP limiter in `feed-generation.ts`: 100 req/min authenticated, 100 req/min unauthenticated (the unauthenticated bucket is keyed by IP, so it is shared across every viewer behind a given AppView). Trips are logged with the DID (or IP), as are auth failures with the JWT's claimed issuer, so an account-specific failure is visible in the logs.
 
 ### Auth
 
 `src/auth.ts` validates the ATProto service-auth JWT on each `getFeedSkeleton` request. DID key resolution calls `plc.directory` and is cached by `MemoryCache` (1h stale TTL, 24h max TTL). Unauthenticated requests are allowed through with `requesterDid = undefined`.
+
+**Auth is not mandatory** (`FEEDGEN_REQUIRE_AUTH` defaults to `false`) and should stay that way unless something makes the response requester-dependent. The skeleton is byte-identical for every caller, so requiring auth adds no privacy and only decides which clients can load the feed at all. Anything that 401s a whole client shows its users a permanently empty feed, which is indistinguishable from the feed being broken.
+
+Two compatibility traps live in this path, both of which produced exactly that:
+
+- **`lxm`.** `verifyJwt` treats a *missing* `lxm` claim as a mismatch, not as "unspecified". That claim postdates the original service-auth spec, so a third-party AppView still minting tokens without it is rejected outright. `validateAuth` passes `null` for the check when the claim is absent and the NSID when it is present, so a wrong `lxm` is still rejected but an absent one is tolerated. `aud` and the signature are always checked.
+- **`aud`.** It must equal `FEEDGEN_SERVICE_DID`. If that variable is unset, `src/index.ts` mints a fresh random `did:key` on every boot, so every token fails the audience check after each deploy. Always set it in production.
+
+Auth failures log the JWT's claimed issuer (decoded without verification, diagnostics only) so a client-specific or account-specific failure is visible in the logs.
