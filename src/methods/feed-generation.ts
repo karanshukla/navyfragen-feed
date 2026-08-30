@@ -26,7 +26,14 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000
 // like "the feed stopped updating" rather than an error. This is a shield
 // against abuse, not a quota, so it sits well above normal client behaviour.
 const MAX_REQUESTS_PER_WINDOW_AUTH = 100
-const MAX_REQUESTS_PER_WINDOW_UNAUTH = 5
+// Keyed by IP, and getFeedSkeleton is called by an AppView server-side, so this
+// bucket is shared by every viewer behind that AppView rather than being one
+// person's budget. 5/min was a global cap on anonymous traffic, which mattered
+// little while auth was mandatory (the branch was unreachable) and would have
+// become the new bottleneck the moment it was not. The outer per-IP limiter in
+// server.ts is the real backstop; this one only needs to stop a single source
+// from monopolising the process.
+const MAX_REQUESTS_PER_WINDOW_UNAUTH = 100
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 const cleanupRateLimiters = () => {

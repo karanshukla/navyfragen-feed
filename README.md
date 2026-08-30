@@ -28,7 +28,7 @@ Node **24 (LTS)**. The `@atproto/*` packages are ESM-only as of `@atproto/xrpc-s
 | `FEEDGEN_SUBSCRIPTION_ENDPOINT` | No | `wss://jetstream1.us-east.bsky.network` | Jetstream endpoint to consume events from |
 | `FEEDGEN_SUBSCRIPTION_RECONNECT_DELAY` | No | `3000` | Milliseconds to wait before reconnecting to Jetstream |
 | `FEEDGEN_PDS_URL` | No | `https://bsky.social` | PDS for the backfill account |
-| `FEEDGEN_REQUIRE_AUTH` | No | `true` | Set to `false` to serve the feed without service auth |
+| `FEEDGEN_REQUIRE_AUTH` | No | `false` | Set to `true` to reject requests that do not carry valid service auth. Off by default: the skeleton is identical for every requester, so requiring auth only decides which clients can load the feed, and third-party clients whose service auth we reject see an empty feed |
 | `FEEDGEN_RETENTION_DAYS` | No | `30` | Days to retain posts before pruning |
 | `FEEDGEN_HANDLE` | No | — | Bluesky handle for backfill (e.g. `you.bsky.social`) |
 | `FEEDGEN_APP_PASSWORD` | No | — | App password for backfill. If unset, backfill is skipped |
