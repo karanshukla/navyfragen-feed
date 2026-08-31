@@ -44,6 +44,8 @@ This is a Bluesky ATProto **feed generator** for Navy Fragen content. It surface
 
 Note: the raw firehose path (`Subscription` from `@atproto/xrpc-server` + `readCar`) was removed — it had been dead code since the Jetstream switch.
 
+**Liveness.** A half-open TCP connection emits neither `error` nor `close`, so a dead subscription used to look exactly like a quiet one: no logs either way. Jetstream filtered to `app.bsky.feed.post` still carries every post on the network, so 60s of total silence means the socket is dead. A watchdog terminates it and reconnects, and a health line reports event and match counts every 5 minutes *unconditionally*, including when both are zero. Matching posts are genuinely rare (single digits per fortnight), so "no posts indexed today" is normal and is not on its own evidence of a broken subscription. Check the `jetstream:` line before concluding anything about ingestion.
+
 **2. Feed serving (read path)**
 Express app exposes `/xrpc/app.bsky.feed.getFeedSkeleton` via the XRPC server from `@atproto/xrpc-server`. The handler in `src/methods/feed-generation.ts` queries the `post` table ordered by `indexedAt DESC`. Results are cached in-process (`src/algos/navyfragen.ts`) with a 2-minute TTL, invalidated early (throttled to once/min) when a matching post arrives.
 
